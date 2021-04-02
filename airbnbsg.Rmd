@@ -1,0 +1,367 @@
+---
+title: "AirBnB Singapore Data Analysis and Visualization"
+author: "Syabaruddin Malik"
+date: "4/1/2021"
+output: 
+  prettydoc::html_pretty:
+      theme: leonids
+      highlight: github
+      df_print : paged
+---
+
+![](C:\SyabaruddinFolder\Work\Algoritma\DATAVIZcourse\DataVisualization\DV\LBB\AirBnB\airbnb/air.png)
+
+Airbnb, Inc. operates an online marketplace for lodging, primarily homestays for vacation rentals, and tourism activities. It is based in San Francisco, California. The platform is accessible via website and mobile app. Airbnb does not own any of the listed properties; instead, it profits by receiving commission from each booking. The company was founded in 2008 by Brian Chesky, Nathan Blecharczyk and Joe Gebbia. Airbnb is a shortened version of its original name, AirBedandBreakfast.com.It currently covers more than 100,000 cities and 220 countries worldwide, including Singapore. 
+
+
+![](C:\SyabaruddinFolder\Work\Algoritma\DATAVIZcourse\DataVisualization\DV\LBB\AirBnB\airbnb/singapore.jpg)
+
+Now we are going to look at Data AirBnb in Singapore.The data sourced from Kaggle.com and collected on 28 August 2019 according to the website.
+
+
+# Data Exploratory and Explanatory
+
+Before we do the exploratory and explanatory data analysis, we will install all the library needed to support the data analysis.
+
+```{r message=F,warning=FALSE}
+library(lubridate)
+library(scales)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(tidyr)
+library(glue)
+library(viridis)
+library(leaflet)
+library(treemapify)
+library(skimr)
+```
+
+After we install the libraries, we call the data and check all the detail of the data.
+
+```{r message=FALSE,warning=FALSE}
+air <- read_csv("airbnb/listings.csv")
+
+```
+
+```{r}
+glimpse(air)
+```
+After we check, the dimension of the data is 7,907 rows and 16 columns. We also check the data types for every column. There are 5 columns that we have to change the data types:
+
++ name 
++ host_name
++ neighbourhood_group
++ neighbourhood
++ room_type
+
+
+```{r}
+airsg <- air %>% 
+  mutate(name = as.factor(name),
+         host_name = as.factor(host_name),
+         neighbourhood_group = as.factor(neighbourhood_group),
+         neighbourhood = as.factor(neighbourhood),
+         room_type = as.factor(room_type))
+
+head(airsg)
+```
+
+Now let us check once more the data and skim the details to check if there is some cleanings necessary
+
+```{r}
+skim(airsg)
+```
+
+We found large missing value data on "reviews_per_month" column and "last_review" column. We probably will not use this column for analysis. So at the moment we keep the column and will do the transformation of the column in the future if necessary
+
+Now let us look at the summary of the data to check the descriptive statistic for each columns
+
+```{r}
+summary(airsg)
+```
+If we look at above the data summary descriptive statistic, we can conclude:
+
++ The most booked host in Singapore listing is Jay
++ Central Region is the most favourite area for airbnb booking in Singapore and North Region is the    least favourite.
++ In terms of Neighbourhood, Kallang is the most desirable area in Singapore for Airbnb booking
++ There are 3 type of listing : ‘Entire home/apt’, ‘Private room’ and ‘Shared room’ type
++ Price median is around SGD 124.0
++ Average staying nights is 17 days
+
+
+# Visualization and Analyis
+
+## Price
+
+Now let's take a look at the price distribution as per room types
+
+```{r message=FALSE,warning=FALSE}
+plot1 <- airsg %>% 
+  select(room_type,price,name) %>%
+  mutate(label=glue(
+    "{name}
+    Price in SGD: {price}
+    Room Type: {room_type}"
+  )) %>% 
+  ggplot(aes(x=room_type,y=price,text=label)) +
+  geom_jitter(aes(col=room_type),cex=1.8,shape=8,alpha=0.3,show.legend = F) + 
+  scale_y_continuous(limits=c(0,500),breaks=seq(0,500,100))+
+  geom_hline(aes(yintercept=median(price, na.rm=T)),   
+               color="red", linetype="dashed", size=1)+
+  labs(title = "Price Distribution to Room Type",
+       subtitle = "AirBnb Singapore",
+       caption= "Data Source: Kaggle.com",
+       x="Room Type",
+       y="Price in SGD"
+       )+
+  theme_bw()
+  
+ggplotly(plot1,tooltip = "text")  %>% layout(showlegend = FALSE)
+   
+```
+
+If we look at the graphic above, the price for entire home/apt per night is averagely higher than shared room and private room
+
+Now let's take a look at the price distribution as per Neighboorhood Group
+
+
+```{r message=FALSE,warning=FALSE}
+plot2 <- airsg %>% 
+  select(neighbourhood_group,neighbourhood,price,name) %>%
+  mutate(label=glue(
+    "{name}
+    Price in SGD: {price}
+    Region: {neighbourhood_group}
+    Area: {neighbourhood}"
+  )) %>% 
+  ggplot(aes(y=price,x=neighbourhood_group,text=label)) +
+  geom_jitter(aes(col=neighbourhood_group)
+              ,alpha=0.3,show.legend = F,cex=1.8,shape=8) + 
+    scale_fill_viridis(discrete = TRUE)+
+  scale_color_viridis(discrete = TRUE)+
+  scale_y_continuous(limits=c(0,500),breaks=seq(0,500,100))+
+  geom_hline(aes(yintercept=median(price, na.rm=T)),   
+               color="red", linetype="dashed", size=1) +
+  labs(title = "Price Distribution to Neighbourhood Group Region",
+       subtitle = "AirBnb Singapore",
+       caption= "Data Source: Kaggle.com",
+       x="",
+       y="Price in SGD",
+       fill="",
+       col="")+
+  theme_bw()
+  
+ggplotly(plot2,tooltip = "text")  %>% layout(showlegend = FALSE)
+   
+```
+
+If we look at the graphic above, the price in the Central Region is averagely higher than other region. It is predictable since this region is the home for famous tourism spots in Singapore.
+
+Since the price in Central Region is averagely high, Now let's take a look at the price distribution in Central Region area. 
+
+```{r message=FALSE,warning=FALSE}
+plot3 <- airsg %>% 
+  filter(neighbourhood_group=="Central Region") %>% 
+  select(neighbourhood,price,name) %>% 
+  mutate(label=glue(
+    "{name}
+    Price avg in SGD: {price}
+    {neighbourhood}"
+  )) %>% 
+  ggplot(aes(y=reorder(neighbourhood,price),x=price,text=label)) +
+  geom_point(aes(col=neighbourhood),alpha=0.4,show.legend = F) + 
+  scale_x_continuous(limits=c(0,3000),breaks=seq(0,3000,500))+
+  geom_vline(aes(xintercept=median(price, na.rm=T)),   
+               color="dodgerblue4", linetype="dashed", size=1) +
+  labs(title = "Price Distribution in Central Region",
+       subtitle = "AirBnb Singapore",
+       caption= "Data Source: Kaggle.com",
+       x="Price in SGD",
+       y="",
+       col="")+
+  theme_bw()
+  
+ggplotly(plot3,tooltip = "text")  %>% layout(showlegend = FALSE)
+  
+   
+```
+
+If we look at the plot above, all of the price listing in Southern Island and Marina South are higher than the average price in Central Region.
+
+Now let us check the Top 10 host with the average highest price bookings
+
+```{r}
+ploth <- airsg %>% 
+  group_by(host_name) %>% 
+  summarise(avg_price=mean(price)) %>% 
+  arrange(desc(avg_price)) %>% 
+  head(10) %>% 
+  mutate(label=glue(
+    "Host Name: {host_name}
+     avg price: {avg_price}"
+  )) %>% 
+  ggplot(aes(x=avg_price,y=reorder(host_name,avg_price),text=label))+
+  geom_col(aes(fill=host_name),show.legend = F)+
+  scale_fill_viridis(discrete = TRUE)+
+  scale_color_viridis(discrete = TRUE)+
+  labs(title="Top 10 Host with The Average Highest Price per Listing",
+       x="Price in SG",
+       y="")+
+  theme_bw()
+
+ggplotly(ploth,tooltip = "text") %>% layout(showlegend=F)
+```
+Based on the plot above, Yolivia's listings are the most expensive listings in Singapore.
+
+
+
+## Room Listings
+
+Now we will take a look more detail on the room listings. 
+
+Let us check the population of the listings in every region in Singapore
+
+```{r}
+plotpop <- airsg %>% 
+  select(neighbourhood_group) %>% 
+  count(neighbourhood_group) %>% 
+  mutate(label=glue(
+    "number of listing: {n} rooms
+     {neighbourhood_group}"
+  )) %>% 
+  ggplot(aes(y=reorder(neighbourhood_group,n),x=n,text=label))+
+  geom_col(aes(fill=neighbourhood_group)) +
+  labs(title= "Population of Listings per Region",
+       x="Numbers of Listings", 
+       y = NULL) +
+    theme_bw()
+
+ggplotly(plotpop,tooltip = "text") %>% layout(showlegend = FALSE)
+```
+If we look at the plot above, the most populated listings in Singapore is in Central Region Area
+
+Now let us check the population of the listings for every room type in Singapore
+
+```{r}
+plotr <- airsg %>%
+  select(room_type) %>%
+  count(room_type) %>%
+  mutate(label = glue(
+    "number of listing: {n} rooms
+     {room_type}")) %>%
+  ggplot(aes(
+    x = reorder(room_type, n),
+    y = n,
+    text = label
+  )) +
+  geom_col(aes(fill = room_type)) +
+  labs(title = "Population of Listings per Room Type",
+       x = "Numbers of Listings",
+       y = NULL) +
+  theme_bw()
+
+ggplotly(plotr, tooltip = "text") %>% layout(showlegend = FALSE)
+```
+If we look at the plot above, the most listings in Singapore is with Entire home/apt type..
+
+
+Let us check the availibility in a year for different room-type in every region
+
+```{r fig.height=6,fig.width=8,message=FALSE,warning=FALSE}
+plot4 <- airsg %>%
+  group_by(neighbourhood_group, room_type) %>%
+  summarise(average_avail = mean(availability_365)) %>%
+  mutate(
+    label = glue(
+    "Avg availability {round(average_avail,0)} days
+    Type: {room_type}
+    {neighbourhood_group}"
+    )
+  ) %>%
+  ggplot(aes(
+    y = reorder(neighbourhood_group, average_avail),
+    x = average_avail,
+    text = label
+  )) +
+  geom_col(aes(fill = room_type), position = "dodge", alpha = 0.8) +
+  scale_fill_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
+  facet_wrap( ~ room_type, scales = "free_x") +
+  labs(
+    title = "Average Days Availibility in a Year",
+    subtitle = "AirBnb Singapore",
+    caption = "Data Source: Kaggle.com",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  theme_bw()
+
+ggplotly(plot4, tooltip = "text") %>% layout(legend = list(
+  orientation = "h",
+  x = 0.2,
+  y = -0.1
+))
+
+```
+Based on plot above, for Shared Room, availability in Central Region is higher than other region. For Private Room, availability in North Region is higher than other region. For Entire/home apt, availibility in Central Region is higher than other region.
+
+
+```{r}
+plothn <- airsg %>%
+  group_by(host_name) %>%
+  count(host_name) %>%
+  arrange(desc(n)) %>%
+  head(10) %>%
+  mutate(label = glue(
+    "Host Name: {host_name}
+     Total Listing: {n} rooms")) %>%
+  ggplot(aes(
+    x = n,
+    y = reorder(host_name, n),
+    text = label
+  )) +
+  geom_col(aes(fill = host_name), show.legend = F) +
+  scale_fill_viridis(discrete = TRUE) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "Top 10 Host with The Most Number of Listing",
+       x = "Number of Listing",
+       y = "") +
+  theme_bw()
+
+ggplotly(plothn, tooltip = "text") %>% layout(showlegend = F)
+```
+Based on plot above, Jay has the most numnber of listing with whooping 290 rooms.
+
+
+## Mapping
+
+Now let us take a look at map below to show the number of listings in Singapore
+
+
+```{r}
+Pic <- makeIcon(
+  iconUrl = "images (1).png",
+  iconWidth = 100 * 0.35,
+  iconHeight = 100 * 0.35
+)
+
+map <- leaflet()
+map <- addTiles(map)
+
+map <- addMarkers(
+  map,
+  lng = airsg$longitude,
+  lat = airsg$latitude,
+  popup = airsg$name,
+  clusterOptions = markerClusterOptions(),
+  icon = Pic
+)
+
+map
+```
+
+
+
